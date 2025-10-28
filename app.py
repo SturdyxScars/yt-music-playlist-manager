@@ -1,3 +1,5 @@
+import json
+
 from flask import Flask, redirect, request, url_for, session, render_template, jsonify
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
@@ -7,6 +9,11 @@ import os
 app = Flask(__name__)
 SECRET_KEY = os.environ.get('SECRET_KEY')
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
+
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SAMESITE="Lax"
+)
 
 
 # your client_secret.json from Google Cloud
@@ -68,6 +75,7 @@ def login():
     )
     auth_url, state = flow.authorization_url(access_type="offline", include_granted_scopes="true", prompt = "consent")
     session["state"] = state
+    print(state)
     return redirect(auth_url)
 
 
@@ -83,6 +91,7 @@ def oauth2callback():
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
     session["credentials"] = creds.to_json()
+    print(session["state"])
     return redirect(url_for("index"))
 
 
@@ -95,7 +104,7 @@ def get_playlists():
     try:
         creds_json = session["credentials"]
         from google.oauth2.credentials import Credentials
-        creds = Credentials.from_authorized_user_info(eval(creds_json))
+        creds = Credentials.from_authorized_user_info(json.load(creds_json))
         creds.refresh(Request())
 
         youtube = build("youtube", "v3", credentials=creds)
