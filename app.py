@@ -5,6 +5,7 @@ from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import os
+from flask_session import Session
 
 app = Flask(__name__)
 SECRET_KEY = os.environ.get('SECRET_KEY')
@@ -12,8 +13,12 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
 app.config.update(
     SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_SAMESITE="Lax"
+    SESSION_COOKIE_SAMESITE="None"
 )
+
+app.config["SESSION_TYPE"] = "filesystem"  # or "redis" if you want persistent sessions
+app.config["SESSION_PERMANENT"] = False
+Session(app)
 
 
 # your client_secret.json from Google Cloud
