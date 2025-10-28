@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 import os
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY')
+app.secret_key = os.environ.get('CLIENT_SECRET')
 
 # allow http for local testing
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -61,7 +61,7 @@ def index():
 # --- LOGIN ---
 @app.route("/login")
 def login():
-    flow = Flow.from_client_secrets_file(
+    flow = Flow.from_client_config(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
         redirect_uri=url_for("oauth2callback", _external=True)
@@ -74,7 +74,7 @@ def login():
 # --- GOOGLE REDIRECT HANDLER ---
 @app.route("/oauth2callback")
 def oauth2callback():
-    flow = Flow.from_client_secrets_file(
+    flow = Flow.from_client_config(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
         state=session["state"],
