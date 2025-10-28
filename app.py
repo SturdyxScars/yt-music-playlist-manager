@@ -5,18 +5,18 @@ from googleapiclient.discovery import build
 import os
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('CLIENT_SECRET')
+# app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
 
 # your client_secret.json from Google Cloud
 CLIENT_SECRETS_FILE = {
     "web":{
         "client_id" : os.environ.get('CLIENT_ID'),
-        "client_secret" : os.environ.get('CLIENT_SECRET'),
         "project_id" : os.environ.get('PROJECT_ID'),
         "auth_uri" : "https://accounts.google.com/o/oauth2/auth",
         "token_uri":"https://oauth2.googleapis.com/token",
         "auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret" : os.environ.get('CLIENT_SECRET'),
         "redirect_uris": [os.environ.get('REDIRECT_URI')]
     }
 
@@ -24,6 +24,7 @@ CLIENT_SECRETS_FILE = {
 
 # OAuth scope — this one gives access to YouTube Data API
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
+print(CLIENT_SECRETS_FILE['web']['redirect_uris'][0])
 
 def insert(song_list, youtube_build, playlist_id):
     for song in song_list:
@@ -148,4 +149,4 @@ def upload():
     return None
 
 if __name__ == "__main__":
-    app.run("localhost", 8080, debug=True)
+    app.run("0.0.0.0", 5000, debug=False)
