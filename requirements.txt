@@ -6,3 +6,4 @@ google-api-python-client==2.147.0
 gunicorn==23.0.0
 Werkzeug==3.0.4
 requests==2.32.3
+Flask-Session
