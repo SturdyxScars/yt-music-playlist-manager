@@ -1,5 +1,5 @@
 import json
-
+import redis
 from flask import Flask, redirect, request, url_for, session, render_template, jsonify
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
@@ -9,6 +9,23 @@ from flask_session import Session
 from werkzeug.middleware.proxy_fix import ProxyFix
 import secrets
 from datetime import datetime, timedelta
+
+if os.environ.get('RENDER'):
+    # Use Redis if available on Render
+    redis_client = redis.Redis.from_url(os.environ.get('REDIS_URL'), decode_responses=True)
+def store_state(state):
+    """Store state with 10-minute expiry"""
+    redis_client.setex(f"oauth_state:{state}", 600, "valid")  # 10 minutes
+
+def validate_state(state):
+    """Check if state exists and is valid"""
+    return redis_client.exists(f"oauth_state:{state}") == 1
+
+def delete_state(state):
+    """Delete state after use"""
+    redis_client.delete(f"oauth_state:{state}")
+
+
 
 
 
@@ -102,8 +119,11 @@ def login():
     )
 
     # Store state with timestamp
-    oauth_states[state] = datetime.utcnow()
+    store_state(state)
     session["oauth_state"] = state
+    session.modified = True
+
+    print(f"Generated state: {state}")
     return redirect(auth_url)
 
 
@@ -113,13 +133,9 @@ def oauth2callback():
     if not state:
         return "Session expired. Please try again.", 400
 
-    # Clean old states
-    for s, timestamp in list(oauth_states.items()):
-        if datetime.utcnow() - timestamp > timedelta(minutes=10):
-            oauth_states.pop(s, None)
-
-    if state not in oauth_states:
-        return "Invalid state. Please try again.", 400
+    # Validate state using Redis
+    if not validate_state(state):
+        return "Invalid or expired state. Please try again.", 400
 
     flow = Flow.from_client_config(
         CLIENT_SECRETS_FILE,
@@ -128,15 +144,22 @@ def oauth2callback():
         redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
     )
 
-    flow.fetch_token(authorization_response=request.url)
-    creds = flow.credentials
-    session["credentials"] = creds.to_json()
+    try:
+        flow.fetch_token(authorization_response=request.url)
+        creds = flow.credentials
+        session["credentials"] = creds.to_json()
+        session.modified = True
 
-    # Clean up used state
-    oauth_states.pop(state, None)
-    session.pop("oauth_state", None)
+        # Clean up the used state from Redis
+        delete_state(state)
+        session.pop("oauth_state", None)
 
-    return redirect(url_for("index"))
+        print("OAuth successful")
+        return redirect(url_for("index"))
+
+    except Exception as e:
+        print(f"OAuth callback error: {e}")
+        return f"Authentication failed: {e}", 400
 
 
 #--- playlists dynamics----
@@ -181,7 +204,7 @@ def upload():
 
     creds_json = session["credentials"]
     from google.oauth2.credentials import Credentials
-    creds = Credentials.from_authorized_user_info(eval(creds_json))
+    creds = Credentials.from_authorized_user_info(json.load(creds_json))
     creds.refresh(Request())
 
     # Example YouTube API client
