@@ -5,7 +5,8 @@ from googleapiclient.discovery import build
 import os
 
 app = Flask(__name__)
-# app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
 
 # your client_secret.json from Google Cloud
