@@ -12,19 +12,24 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 SECRET_KEY = os.environ.get('SECRET_KEY')
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
+app.secret_key = SECRET_KEY
 
-
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.config.update(
-    SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_SAMESITE="None"
+    SESSION_TYPE='filesystem',
+    SESSION_PERMANENT=False,
+    SESSION_USE_SIGNER=True,
+    SESSION_COOKIE_SECURE=True,  # Should be True in production
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',  # Change from 'None' to 'Lax' initially
+    PERMANENT_SESSION_LIFETIME=1800  # 30 minutes
 )
 
-app.config["SESSION_TYPE"] = "filesystem"  # or "redis" if you want persistent sessions
-app.config["SESSION_PERMANENT"] = False
+# For Render, you might need to use a different session type
+app.config['SESSION_TYPE'] = 'filesystem'  # Try 'redis' if you have Redis addon
+
 Session(app)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 
 # your client_secret.json from Google Cloud
@@ -79,33 +84,62 @@ def index():
 # --- LOGIN ---
 @app.route("/login")
 def login():
-    flow = Flow.from_client_config(
-        CLIENT_SECRETS_FILE,
-        scopes=SCOPES,
-        redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
-    )
-    auth_url, state = flow.authorization_url(access_type="offline", include_granted_scopes="true", prompt = "consent")
-    session["state"] = state
-    print(state)
-    return redirect(auth_url)
+    try:
+        flow = Flow.from_client_config(
+            CLIENT_SECRETS_FILE,
+            scopes=SCOPES,
+            redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
+        )
+        auth_url, state = flow.authorization_url(
+            access_type="offline",
+            include_granted_scopes="true",
+            prompt="consent"
+        )
+
+        # Store both state and the flow in session
+        session["state"] = state
+        session.modified = True  # Ensure session is saved
+
+        print(f"Generated state: {state}")
+        return redirect(auth_url)
+    except Exception as e:
+        print(f"Login error: {e}")
+        return f"Login error: {e}", 500
 
 
-# --- GOOGLE REDIRECT HANDLER ---
 @app.route("/oauth2callback")
 def oauth2callback():
-    flow = Flow.from_client_config(
-        CLIENT_SECRETS_FILE,
-        scopes=SCOPES,
-        state=session["state"],
-        redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
-    )
-    flow.fetch_token(authorization_response=request.url)
-    creds = flow.credentials
-    session["credentials"] = creds.to_json()
-    print(session["state"])
-    return redirect(url_for("index"))
+    try:
+        # Check if state exists in session
+        if "state" not in session:
+            return "State missing from session. Please try logging in again.", 400
 
+        stored_state = session.get("state")
+        print(f"Stored state: {stored_state}")
 
+        flow = Flow.from_client_config(
+            CLIENT_SECRETS_FILE,
+            scopes=SCOPES,
+            state=stored_state,
+            redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
+        )
+
+        flow.fetch_token(authorization_response=request.url)
+
+        # Verify state matches
+        if request.args.get('state') != stored_state:
+            return "State mismatch error", 400
+
+        creds = flow.credentials
+        session["credentials"] = creds.to_json()
+        session.modified = True
+
+        print("OAuth successful")
+        return redirect(url_for("index"))
+
+    except Exception as e:
+        print(f"OAuth callback error: {e}")
+        return f"Authentication failed: {e}", 400
 #--- playlists dynamics----
 @app.route("/get_playlists")
 def get_playlists():
