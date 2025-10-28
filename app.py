@@ -7,6 +7,8 @@ from googleapiclient.discovery import build
 import os
 from flask_session import Session
 from werkzeug.middleware.proxy_fix import ProxyFix
+import secrets
+from datetime import datetime, timedelta
 
 
 
@@ -82,64 +84,61 @@ def index():
     return render_template("index.html")
 
 # --- LOGIN ---
+# Simple in-memory store (use Redis or database in production)
+oauth_states = {}
+
+
 @app.route("/login")
 def login():
-    try:
-        flow = Flow.from_client_config(
-            CLIENT_SECRETS_FILE,
-            scopes=SCOPES,
-            redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
-        )
-        auth_url, state = flow.authorization_url(
-            access_type="offline",
-            include_granted_scopes="true",
-            prompt="consent"
-        )
+    flow = Flow.from_client_config(
+        CLIENT_SECRETS_FILE,
+        scopes=SCOPES,
+        redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
+    )
+    auth_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent"
+    )
 
-        # Store both state and the flow in session
-        session["state"] = state
-        session.modified = True  # Ensure session is saved
-
-        print(f"Generated state: {state}")
-        return redirect(auth_url)
-    except Exception as e:
-        print(f"Login error: {e}")
-        return f"Login error: {e}", 500
+    # Store state with timestamp
+    oauth_states[state] = datetime.utcnow()
+    session["oauth_state"] = state
+    return redirect(auth_url)
 
 
 @app.route("/oauth2callback")
 def oauth2callback():
-    try:
-        # Check if state exists in session
-        if "state" not in session:
-            return "State missing from session. Please try logging in again.", 400
+    state = session.get("oauth_state")
+    if not state:
+        return "Session expired. Please try again.", 400
 
-        stored_state = session.get("state")
-        print(f"Stored state: {stored_state}")
+    # Clean old states
+    for s, timestamp in list(oauth_states.items()):
+        if datetime.utcnow() - timestamp > timedelta(minutes=10):
+            oauth_states.pop(s, None)
 
-        flow = Flow.from_client_config(
-            CLIENT_SECRETS_FILE,
-            scopes=SCOPES,
-            state=stored_state,
-            redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
-        )
+    if state not in oauth_states:
+        return "Invalid state. Please try again.", 400
 
-        flow.fetch_token(authorization_response=request.url)
+    flow = Flow.from_client_config(
+        CLIENT_SECRETS_FILE,
+        scopes=SCOPES,
+        state=state,
+        redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
+    )
 
-        # Verify state matches
-        if request.args.get('state') != stored_state:
-            return "State mismatch error", 400
+    flow.fetch_token(authorization_response=request.url)
+    creds = flow.credentials
+    session["credentials"] = creds.to_json()
 
-        creds = flow.credentials
-        session["credentials"] = creds.to_json()
-        session.modified = True
+    # Clean up used state
+    oauth_states.pop(state, None)
+    session.pop("oauth_state", None)
 
-        print("OAuth successful")
-        return redirect(url_for("index"))
+    return redirect(url_for("index"))
 
-    except Exception as e:
-        print(f"OAuth callback error: {e}")
-        return f"Authentication failed: {e}", 400
+
 #--- playlists dynamics----
 @app.route("/get_playlists")
 def get_playlists():
