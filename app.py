@@ -7,8 +7,6 @@ import os
 app = Flask(__name__)
 app.secret_key = os.environ.get('CLIENT_SECRET')
 
-# allow http for local testing
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 # your client_secret.json from Google Cloud
 CLIENT_SECRETS_FILE = {
