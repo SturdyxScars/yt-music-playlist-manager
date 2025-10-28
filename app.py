@@ -22,7 +22,7 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="None"
 )
 
-app.config["SESSION_TYPE"] = "redis"  # or "redis" if you want persistent sessions
+app.config["SESSION_TYPE"] = "filesystem"  # or "redis" if you want persistent sessions
 app.config["SESSION_PERMANENT"] = False
 Session(app)
 
