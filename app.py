@@ -62,7 +62,7 @@ def login():
     flow = Flow.from_client_config(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
-        redirect_uri=url_for("oauth2callback", _external=True)
+        redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
     )
     auth_url, state = flow.authorization_url(access_type="offline", include_granted_scopes="true", prompt = "consent")
     session["state"] = state
@@ -76,7 +76,7 @@ def oauth2callback():
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
         state=session["state"],
-        redirect_uri=url_for("oauth2callback", _external=True)
+        redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
     )
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
@@ -127,15 +127,10 @@ def upload():
     creds_json = session["credentials"]
     from google.oauth2.credentials import Credentials
     creds = Credentials.from_authorized_user_info(eval(creds_json))
-    #creds.refresh(Request())
+    creds.refresh(Request())
 
     # Example YouTube API client
     youtube = build("youtube", "v3", credentials=creds)
-    playlists= youtube.playlists().list(part="snippet", mine="true").execute()
-
-    print(playlists["items"][0]["snippet"]["title"])
-    playlist_ids = [i["snippet"]["title"] for i in playlists.get("items", [])]
-
 
 
     uploaded_file = request.files.get("file")
@@ -145,13 +140,10 @@ def upload():
 
     if uploaded_file and uploaded_file.filename:
         content = uploaded_file.read().decode("utf-8").splitlines()
-        print(len(content))
-        songs = [line.strip() for line in content if line.strip()]
         insert(content, youtube_build = youtube, playlist_id= playlist_id) # function to add songs
 
     if song_list_text:
         list = song_list_text.splitlines()
-        print(len(list))
         insert(list, youtube_build = youtube, playlist_id = playlist_id) # function to add song
     return None
 
