@@ -6,17 +6,23 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import os
 from flask_session import Session
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+
 
 app = Flask(__name__)
 SECRET_KEY = os.environ.get('SECRET_KEY')
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
+
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_SAMESITE="None"
 )
 
-app.config["SESSION_TYPE"] = "filesystem"  # or "redis" if you want persistent sessions
+app.config["SESSION_TYPE"] = "redis"  # or "redis" if you want persistent sessions
 app.config["SESSION_PERMANENT"] = False
 Session(app)
 
