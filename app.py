@@ -148,6 +148,7 @@ def oauth2callback():
         state=state,
         redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
     )
+    flow.redirect_uri = CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
 
     try:
         flow.fetch_token(authorization_response=request.url)
