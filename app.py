@@ -29,6 +29,7 @@ def delete_state(state):
 
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 SECRET_KEY = os.environ.get('SECRET_KEY')
 app.secret_key = SECRET_KEY
 
@@ -45,7 +46,6 @@ app.config.update(
 )
 
 Session(app)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 
 # your client_secret.json from Google Cloud
@@ -104,25 +104,29 @@ oauth_states = {}
 
 @app.route("/login")
 def login():
-    flow = Flow.from_client_config(
-        CLIENT_SECRETS_FILE,
-        scopes=SCOPES,
-        redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
-    )
-    auth_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="consent"
-    )
+    try:
+        flow = Flow.from_client_config(
+            CLIENT_SECRETS_FILE,
+            scopes=SCOPES,
+            redirect_uri=CLIENT_SECRETS_FILE['web']['redirect_uris'][0]
+        )
+        auth_url, state = flow.authorization_url(
+            access_type="offline",
+            include_granted_scopes="true",
+            prompt="consent"
+        )
 
-    # Store state with timestamp
-    store_state(state)
-    session["oauth_state"] = state
-    session.modified = True
+        # Store state with timestamp
+        store_state(state)
+        session["oauth_state"] = state
+        session.modified = True
 
-    print(f"Generated state: {state}")
-    print(f"Authorization URL: {auth_url}")
-    return redirect(auth_url)
+        print(f"Generated state: {state}")
+        print(f"Authorization URL: {auth_url}")
+        return redirect(auth_url)
+    except Exception as e:
+        print(e)
+        return redirect("/")
 
 
 @app.route("/oauth2callback")
