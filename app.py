@@ -177,7 +177,7 @@ def get_playlists():
     try:
         creds_json = session["credentials"]
         from google.oauth2.credentials import Credentials
-        creds = Credentials.from_authorized_user_info(json.load(creds_json))
+        creds = Credentials.from_authorized_user_info(eval(creds_json))
         creds.refresh(Request())
 
         youtube = build("youtube", "v3", credentials=creds)
@@ -210,7 +210,7 @@ def upload():
 
     creds_json = session["credentials"]
     from google.oauth2.credentials import Credentials
-    creds = Credentials.from_authorized_user_info(json.load(creds_json))
+    creds = Credentials.from_authorized_user_info(eval(creds_json))
     creds.refresh(Request())
 
     # Example YouTube API client
