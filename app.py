@@ -10,9 +10,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import secrets
 from datetime import datetime, timedelta
 
-if os.environ.get('RENDER'):
-    # Use Redis if available on Render
-    redis_client = redis.Redis.from_url(os.environ.get('REDIS_URL'), decode_responses=True)
+redis_client = redis.Redis.from_url(os.environ.get('REDIS_URL'), decode_responses=True)
 def store_state(state):
     """Store state with 10-minute expiry"""
     redis_client.setex(f"oauth_state:{state}", 600, "valid")  # 10 minutes
@@ -27,6 +25,7 @@ def delete_state(state):
 
 
 
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 
 app = Flask(__name__)
@@ -43,9 +42,6 @@ app.config.update(
     SESSION_COOKIE_SAMESITE='Lax',  # Change from 'None' to 'Lax' initially
     PERMANENT_SESSION_LIFETIME=1800  # 30 minutes
 )
-
-# For Render, you might need to use a different session type
-app.config['SESSION_TYPE'] = 'filesystem'  # Try 'redis' if you have Redis addon
 
 Session(app)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -130,11 +126,14 @@ def login():
 @app.route("/oauth2callback")
 def oauth2callback():
     state = session.get("oauth_state")
+    print(f"after callback retrieved state : {state}")
     if not state:
+        print("session timeout, sign in again")
         return "Session expired. Please try again.", 400
 
     # Validate state using Redis
     if not validate_state(state):
+        print("state didn't validate")
         return "Invalid or expired state. Please try again.", 400
 
     flow = Flow.from_client_config(
