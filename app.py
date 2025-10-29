@@ -34,7 +34,7 @@ app.secret_key = SECRET_KEY
 
 
 app.config.update(
-    SESSION_TYPE='redis',
+    SESSION_TYPE='filesystem',
     SESSION_REDIS=redis_client,
     SESSION_PERMANENT=False,
     SESSION_USE_SIGNER=True,
@@ -121,13 +121,12 @@ def login():
     session.modified = True
 
     print(f"Generated state: {state}")
+    print(f"Authorization URL: {auth_url}")
     return redirect(auth_url)
 
 
 @app.route("/oauth2callback")
 def oauth2callback():
-    print("Cookies:", request.cookies)
-    print("Session before validation:", dict(session))
     state = session.get("oauth_state")
     print(f"after callback retrieved state : {state}")
     if not state:
