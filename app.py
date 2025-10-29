@@ -25,7 +25,7 @@ def delete_state(state):
 
 
 
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+# os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 
 app = Flask(__name__)
@@ -34,12 +34,13 @@ app.secret_key = SECRET_KEY
 
 
 app.config.update(
-    SESSION_TYPE='filesystem',
+    SESSION_TYPE='redis',
+    SESSION_REDIS=redis_client,
     SESSION_PERMANENT=False,
     SESSION_USE_SIGNER=True,
     SESSION_COOKIE_SECURE=True,  # Should be True in production
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',  # Change from 'None' to 'Lax' initially
+    SESSION_COOKIE_SAMESITE='None',  # Change from 'None' to 'Lax' initially
     PERMANENT_SESSION_LIFETIME=1800  # 30 minutes
 )
 
@@ -56,7 +57,7 @@ CLIENT_SECRETS_FILE = {
         "token_uri":"https://oauth2.googleapis.com/token",
         "auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs",
         "client_secret" : os.environ.get('CLIENT_SECRET'),
-        "redirect_uris": [os.environ.get('REDIRECT_URI')]
+        "redirect_uris": ["https://ytm-playlists.onrender.com/oauth2callback"]
     }
 
 }
@@ -125,6 +126,8 @@ def login():
 
 @app.route("/oauth2callback")
 def oauth2callback():
+    print("Cookies:", request.cookies)
+    print("Session before validation:", dict(session))
     state = session.get("oauth_state")
     print(f"after callback retrieved state : {state}")
     if not state:
